@@ -2,7 +2,7 @@
 ########################################
 ProblemStatement:
 ------------------
- Performanobjectivecomparisonoftwoprominentmethodsincontextof Semantic Based Sentence Classification: [2] “Tree structured Long Short Term Memory Networks” and [3] “Convolutional Network for Sentence Classification”. We also plan to extend multi channel design (static and task based vector usage) utilized in the later work [3], to explore Compound Multi­Channel Neural Networks (parallely trained vectors from two different neural architectures).
+ Perform an objective comparison of two prominent methods in context of Semantic Based Sentence Classification: [2] “Tree structured Long Short Term Memory Networks” and [3] “Convolutional Network for Sentence Classification”. We also plan to extend multi channel design (static and task based vector usage) utilized in the later work [3], to explore Compound Multi­Channel Neural Networks (parallely trained vectors from two different neural architectures).
 Input/Output Behaviour:
 -----------------------
 Stanford Sentiment Treebank classifies sentiments in 5 classes using the following cut­offs:
