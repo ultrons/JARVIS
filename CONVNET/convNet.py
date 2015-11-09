@@ -62,9 +62,11 @@ def load_data_shared(training_data, validation_data, test_data):
 
         """
         shared_x = theano.shared(
-            np.asarray(data[:,:MAXWORDS*SWORDVEC].astype(np.float32).flatten(), dtype=theano.config.floatX), borrow=True)
+            np.asarray(data[:,:MAXWORDS*SWORDVEC].astype(np.float32), dtype=theano.config.floatX), borrow=True)
         shared_y = theano.shared(
-            np.asarray(data[:,MAXWORDS*SWORDVEC:], dtype=theano.config.floatX), borrow=True)
+            #np.asarray(np.squeeze(np.asarray(data[:,MAXWORDS*SWORDVEC:])).astype(np.int64), dtype=theano.config.floatX), borrow=True)
+            np.asarray(data[:,MAXWORDS*SWORDVEC:].astype(np.int64).flatten(), dtype=theano.config.floatX), borrow=True)
+        print shared_x.type, T.cast(shared_y, "int32").type
         return shared_x, T.cast(shared_y, "int32")
         #return shared_x, shared_y
     return [shared(training_data), shared(validation_data), shared(test_data)]
@@ -81,8 +83,8 @@ class Network(object):
         self.layers = layers
         self.mini_batch_size = mini_batch_size
         self.params = [param for layer in self.layers for param in layer.params]
-        self.x = T.fmatrix("x")
-        self.y = T.imatrix("y")
+        self.x = T.matrix("x")
+        self.y = T.ivector("y")
         init_layer = self.layers[0]
         init_layer.set_inpt(self.x, self.x, self.mini_batch_size)
         for j in xrange(1, len(self.layers)):
@@ -96,7 +98,6 @@ class Network(object):
             validation_data, test_data, lmbda=0.0):
         """Train the network using mini-batch stochastic gradient descent."""
         training_x, training_y = training_data
-        print  training_y
         validation_x, validation_y = validation_data
         test_x, test_y = test_data
 
@@ -216,7 +217,6 @@ class ConvPoolLayer(object):
         self.params = [self.w, self.b]
 
     def set_inpt(self, inpt, inpt_dropout, mini_batch_size):
-        print inpt.type
         self.inpt = inpt.reshape(self.image_shape)
         conv_out = conv.conv2d(
             input=self.inpt, filters=self.w, filter_shape=self.filter_shape,
@@ -317,7 +317,7 @@ if __name__ == '__main__':
     training_data, validation_data, test_data = load_data_shared(train, test, val)
     mini_batch_size = 2
     net = Network([
-    ConvPoolLayer(image_shape=(mini_batch_size, 1, 300, 10), 
+    ConvPoolLayer(image_shape=(mini_batch_size, 1, 10, 300), 
                           filter_shape=(20, 1, 5, 5), 
                           poolsize=(2, 2)),
             FullyConnectedLayer(n_in=20*12*12, n_out=100),
