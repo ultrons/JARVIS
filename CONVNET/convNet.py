@@ -34,11 +34,6 @@ from theano.tensor.nnet import sigmoid
 from theano.tensor import tanh
 
 
-
-# Local librariesa
-import loadData as ld
-
-
 #### Constants
 GPU = True
 if GPU:
@@ -55,20 +50,15 @@ else:
 #### Load the SST Data
 def load_data_shared(training_data, validation_data, test_data):
     def shared(data):
-        MAXWORDS=10
-        SWORDVEC=300
         """Place the data into shared variables.  This allows Theano to copy
         the data to the GPU, if one is available.
 
         """
         shared_x = theano.shared(
-            np.asarray(data[:,:MAXWORDS*SWORDVEC].astype(np.float32), dtype=theano.config.floatX), borrow=True)
+            np.asarray(data[0], dtype=theano.config.floatX), borrow=True)
         shared_y = theano.shared(
-            #np.asarray(np.squeeze(np.asarray(data[:,MAXWORDS*SWORDVEC:])).astype(np.int64), dtype=theano.config.floatX), borrow=True)
-            np.asarray(data[:,MAXWORDS*SWORDVEC:].astype(np.int64).flatten(), dtype=theano.config.floatX), borrow=True)
-        print shared_x.type, T.cast(shared_y, "int32").type
+            np.asarray(data[1], dtype=theano.config.floatX), borrow=True)
         return shared_x, T.cast(shared_y, "int32")
-        #return shared_x, shared_y
     return [shared(training_data), shared(validation_data), shared(test_data)]
 
 #### Main class used to construct and train networks
@@ -155,6 +145,7 @@ class Network(object):
                 if iteration % 1000 == 0:
                     print("Training mini-batch number {0}".format(iteration))
                 cost_ij = train_mb(minibatch_index)
+                #print "DBG", cost_ij
                 if (iteration+1) % num_training_batches == 0:
                     validation_accuracy = np.mean(
                         [validate_mb_accuracy(j) for j in xrange(num_validation_batches)])
@@ -198,9 +189,9 @@ class ConvPoolLayer(object):
         x pooling sizes.
 
         """
-        self.filter_shape = filter_shape #(N,M, d1,d2)
-        self.image_shape = image_shape #(b,M, d1,d2)
-        self.poolsize = poolsize #(p1,p2)
+        self.filter_shape = filter_shape
+        self.image_shape = image_shape
+        self.poolsize = poolsize
         self.activation_fn=activation_fn
         # initialize weights and biases
         n_out = (filter_shape[0]*np.prod(filter_shape[2:])/np.prod(poolsize))
@@ -280,6 +271,7 @@ class SoftmaxLayer(object):
         self.inpt = inpt.reshape((mini_batch_size, self.n_in))
         self.output = softmax((1-self.p_dropout)*T.dot(self.inpt, self.w) + self.b)
         self.y_out = T.argmax(self.output, axis=1)
+        #print "DBG", self.output
         self.inpt_dropout = dropout_layer(
             inpt_dropout.reshape((mini_batch_size, self.n_in)), self.p_dropout)
         self.output_dropout = softmax(T.dot(self.inpt_dropout, self.w) + self.b)
@@ -307,22 +299,22 @@ def dropout_layer(layer, p_dropout):
 
 ################################################################################
 if __name__ == '__main__':
-    glove='/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/sample'
-    wordVectorPickle='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/wordVectors.p'
-    dataSet='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/sampleDictionary.txt'
-    labels='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/sampleLables.txt'
-    #dataSet=loadData(wordVectorPickle, 'pickle', dataSet, labels)
-    d=ld.loadData(glove, 'txt', dataSet, labels)
-    [train, test, val] = d.createSplit()
-    training_data, validation_data, test_data = load_data_shared(train, test, val)
-    mini_batch_size = 2
+    # Local librariesa
+    import loadData as ld
+    #preTrainedVec='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/PRE-TRAINED/vectors.6B.100d.txt'
+    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/vectors.6B.100d.splitted.aaa']
+    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/sampleDictionary.txt'
+    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/sampleLables.txt'
+    pv=ld.preTrainedVectors(preTrainedVecFiles)
+    dataSet=ld.corpus(pv,(phraseFile,labelFile),maxwords=60,wvDim=100)
+    d1,d2,d3=dataSet.createSplit()
+    training_data, validation_data, test_data = load_data_shared(d1,d2,d3)
+    mini_batch_size = 1
     net = Network([
-    ConvPoolLayer(image_shape=(mini_batch_size, 1, 10, 300), 
+    ConvPoolLayer(image_shape=(mini_batch_size, 1, 60, 100), 
                           filter_shape=(20, 1, 5, 5), 
                           poolsize=(2, 2)),
-            FullyConnectedLayer(n_in=20*12*12, n_out=100),
-            SoftmaxLayer(n_in=100, n_out=10)], mini_batch_size)
-    net.SGD(training_data, 2, mini_batch_size, 0.1, 
-                validation_data, test_data)   
-
-
+            FullyConnectedLayer(n_in=20*28*48, n_out=200),
+            SoftmaxLayer(n_in=200, n_out=5)], mini_batch_size)
+    net.SGD(training_data, 5, mini_batch_size, 0.1, 
+                validation_data, test_data)
