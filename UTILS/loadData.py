@@ -100,10 +100,10 @@ class corpus(object):
                     if id in vectorDict:
                         p=float(p)
                         if   p <= 0.2: label=0
-                        elif p <= 0.4: label=0
-                        elif p <= 0.6: label=0
-                        elif p <= 0.8: label=1
-                        elif p <= 1.0: label=1
+                        elif p <= 0.4: label=1
+                        elif p <= 0.6: label=2
+                        elif p <= 0.8: label=3
+                        elif p <= 1.0: label=4
                         dX+=vectorDict[id]
                         dY.append(label)
             f.close()
@@ -115,9 +115,8 @@ class corpus(object):
 
     def createSplit(self, ttvSplit=[0.60,0.30,0.10]):
         tr,tst,vld = ttvSplit
-        #self.X, self.Y = shuffle(self.X, self.Y, random_state=42)
+        self.X, self.Y = shuffle(self.X, self.Y, random_state=42)
         N=self.numExamples
-        #np.random.shuffle(dataShuffled)
         train=int(N*tr)
         test=train+int(N*tst)
         return (self.X[:train],self.Y[:train]), \
@@ -126,9 +125,9 @@ class corpus(object):
         
 if __name__ == '__main__':
     #preTrainedVec='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/PRE-TRAINED/vectors.6B.100d.txt'
-    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/vectors.6B.100d.splitted.aaa']
-    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/sampleDictionary.txt'
-    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/sampleLables.txt'
+    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa']
+    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleDictionary.txt'
+    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleLables.txt'
     pv=preTrainedVectors(preTrainedVecFiles)
     dataSet=corpus(pv,(phraseFile,labelFile))
     d1,d2,d3=dataSet.createSplit()

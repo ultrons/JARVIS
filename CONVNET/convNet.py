@@ -42,6 +42,7 @@ if GPU:
     try: theano.config.device = 'gpu'
     except: pass # it's already set
     theano.config.floatX = 'float32'
+    theano.config.optimizer='fast_compile'
 else:
     #theano.config.floatX = 'float32'
     print "Running with a CPU.  If this is not desired, then the modify "+\
@@ -301,20 +302,25 @@ def dropout_layer(layer, p_dropout):
 if __name__ == '__main__':
     # Local librariesa
     import loadData as ld
-    #preTrainedVec='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/PRE-TRAINED/vectors.6B.100d.txt'
-    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/vectors.6B.100d.splitted.aaa']
-    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/sampleDictionary.txt'
-    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/SCRATCH/sampleLables.txt'
+    #preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa']
+    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.txt']
+    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleDictionary.txt'
+    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleLables.txt'
     pv=ld.preTrainedVectors(preTrainedVecFiles)
     dataSet=ld.corpus(pv,(phraseFile,labelFile),maxwords=60,wvDim=100)
     d1,d2,d3=dataSet.createSplit()
+    print ("Split Info:")
+    print ("Traning Examples: %d" %d1[1].shape[0])
+    print ("Test Examples: %d" %d2[1].shape[0])
+    print ("Validation Examples: %d" %d3[1].shape[0])
     training_data, validation_data, test_data = load_data_shared(d1,d2,d3)
-    mini_batch_size = 1
+    mini_batch_size = 100
+    epochs=10
     net = Network([
     ConvPoolLayer(image_shape=(mini_batch_size, 1, 60, 100), 
                           filter_shape=(20, 1, 5, 5), 
                           poolsize=(2, 2)),
             FullyConnectedLayer(n_in=20*28*48, n_out=200),
             SoftmaxLayer(n_in=200, n_out=5)], mini_batch_size)
-    net.SGD(training_data, 5, mini_batch_size, 0.1, 
+    net.SGD(training_data, epochs, mini_batch_size, 0.1, 
                 validation_data, test_data)
