@@ -1,12 +1,13 @@
 """
-FileName: convNet.py
+FileName: convNet.Theano.py
 Abstract: Basic convolutional neural network framework
+Author  : Vaibhav Singh
 
 
 Attribution:
 ------------
-    1. Inspired from: Michael Nelson's amazing online book on deep learning
-    network3.py from his examples repository:
+    1. Inspired from: Michael Neilsen's amazing online book on deep learning
+    MNIST Basic CNN network3.py from his examples repository:
     https://github.com/mnielsen/neural-networks-and-deep-learning.git
     2. Theano tutorial:
     http://deeplearning.net/tutorial/lenet.html
@@ -42,7 +43,7 @@ if GPU:
     try: theano.config.device = 'gpu'
     except: pass # it's already set
     theano.config.floatX = 'float32'
-    theano.config.optimizer='fast_compile'
+    #theano.config.optimizer='fast_compile'
 else:
     #theano.config.floatX = 'float32'
     print "Running with a CPU.  If this is not desired, then the modify "+\
@@ -58,7 +59,7 @@ def load_data_shared(training_data, validation_data, test_data):
         shared_x = theano.shared(
             np.asarray(data[0], dtype=theano.config.floatX), borrow=True)
         shared_y = theano.shared(
-            np.asarray(data[1], dtype=theano.config.floatX), borrow=True)
+            np.asarray(np.argsort(data[1], axis=1)[:,-1].flatten(), dtype=theano.config.floatX), borrow=True)
         return shared_x, T.cast(shared_y, "int32")
     return [shared(training_data), shared(validation_data), shared(test_data)]
 
@@ -302,25 +303,33 @@ def dropout_layer(layer, p_dropout):
 if __name__ == '__main__':
     # Local librariesa
     import loadData as ld
-    #preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa']
-    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.txt']
-    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleDictionary.txt'
-    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleLables.txt'
+    preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa']
+    DS = { 'sst':
+                # (phraseFile,labelFile) 
+                ('/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleDictionary.txt',
+                 '/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleLables.txt'),
+           'mr':
+               #(Neg,Pos)
+               ('/Users/MAVERICK/Documents/CS221/project/work_area/MR/rt-polaritydata/rt-polarity.neg',
+                '/Users/MAVERICK/Documents/CS221/project/work_area/MR/rt-polaritydata/rt-polarity.pos'
+               )
+              }
     pv=ld.preTrainedVectors(preTrainedVecFiles)
-    dataSet=ld.corpus(pv,(phraseFile,labelFile),maxwords=60,wvDim=100)
+    format='mr'
+    dataSet=ld.corpus(pv,DS[format],format)
     d1,d2,d3=dataSet.createSplit()
     print ("Split Info:")
     print ("Traning Examples: %d" %d1[1].shape[0])
     print ("Test Examples: %d" %d2[1].shape[0])
     print ("Validation Examples: %d" %d3[1].shape[0])
     training_data, validation_data, test_data = load_data_shared(d1,d2,d3)
-    mini_batch_size = 100
-    epochs=10
+    mini_batch_size = 50
+    epochs=20
     net = Network([
     ConvPoolLayer(image_shape=(mini_batch_size, 1, 60, 100), 
                           filter_shape=(20, 1, 5, 5), 
-                          poolsize=(2, 2)),
-            FullyConnectedLayer(n_in=20*28*48, n_out=200),
+                          poolsize=(4, 4)),
+            FullyConnectedLayer(n_in=20*14*24, n_out=200),
             SoftmaxLayer(n_in=200, n_out=5)], mini_batch_size)
-    net.SGD(training_data, epochs, mini_batch_size, 0.1, 
+    net.SGD(training_data, epochs, mini_batch_size, 0.5, 
                 validation_data, test_data)
