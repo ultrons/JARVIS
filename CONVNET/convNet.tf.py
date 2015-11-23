@@ -1,11 +1,14 @@
 """
-FileName: convNet.py
+FileName: convNet.tf.py
 Abstract: Basic convolutional neural network framework
+Author  : Vaibhav Singh
 
 
 Attribution:
 ------------
     1. Inspired from: Google Tensor Flow, Advanced MNIST Tutorial
+       Simplified removing second conv/pool layers
+    2. DataSet Passing adapted from common load data Utility
 """
 from sklearn.utils import shuffle
 import loadData as ld
@@ -22,12 +25,14 @@ DS = { 'sst':
           }
 
 pv=ld.preTrainedVectors(preTrainedVecFiles)
-format='mr'
-mini_batch_size=50
+format='sst'
+mini_batch_size=100
 epochs=20
 maxwords=60
 wvDim=100
 numClasses=2
+numFeatureMaps=20
+fcSize=200
 dataSet=ld.corpus(pv,DS[format],format)
 trainSet,testSet,valSet=dataSet.createSplit()
 trainSetSize=trainSet[1].shape[0]
@@ -95,9 +100,9 @@ def max_pool_2x2(x):
 # We will comment about the third parameter when we look at the second
 # For now we remember that it's the number of input channels
 # convolution layer
-W_conv1 = weight_variable([5,5,1,32])
+W_conv1 = weight_variable([5,5,1,numFeatureMaps])
 # Bias term is obviously of the dimension (count of neurons in a filter)
-b_conv1 = bias_variable([32])
+b_conv1 = bias_variable([numFeatureMaps])
 
 # Now we are about to construct the convolutional and pooling layers
 # but before we do that we need to reshape our 784 dimensional vector to 
@@ -132,13 +137,13 @@ h_pool1 = max_pool_2x2(h_conv1)
 # Constructing fully connected layer
 # Notice we are down to 64  7x7 images now
 # 1024 is an arbitrary choice of outputs from fully connected layer
-W_fc1 = weight_variable([maxwords*wvDim*32/4, 200])
-b_fc1 = bias_variable([200])
+W_fc1 = weight_variable([maxwords*wvDim*numFeatureMaps/4, fcSize])
+b_fc1 = bias_variable([fcSize])
 
 
 # Before we enter to full connected layer we come back to vector form
 #h_pool2_flat = tf.reshape(h_pool2, [-1, maxwords*wvDim*64/16])
-h_pool2_flat = tf.reshape(h_pool1, [-1, maxwords*wvDim*32/4])
+h_pool2_flat = tf.reshape(h_pool1, [-1, maxwords*wvDim*numFeatureMaps/4])
 
 # Choosing relu in the fully connected layer
 h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
@@ -151,7 +156,7 @@ keep_prob = tf.placeholder('float')
 h_fc1_drop=tf.nn.dropout(h_fc1, keep_prob)
 
 # Finally Weights and biases for output softmax layer
-W_fc2 = weight_variable([200, numClasses])
+W_fc2 = weight_variable([fcSize, numClasses])
 b_fc2 = bias_variable([numClasses])
 # Output sofmax layer
 y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
@@ -175,16 +180,17 @@ sess.run(tf.initialize_all_variables())
 for e in range(epochs):
     for i in range(numBatch):
         batch = (trainSet[0][i*mini_batch_size:(i+1)*mini_batch_size],
-                 trainSet[1][i*mini_batch_size:(i+1)*mini_batch_size]) 
-        print "INFO", batch[0].shape, type(batch[0]), batch[1].shape, type(batch[1])
+                 trainSet[1][i*mini_batch_size:(i+1)*mini_batch_size])
+        batch = shuffle(batch[0], batch[1])
+        #print "INFO", batch[0].shape, type(batch[0]), batch[1].shape, type(batch[1])
         # Print training accuracy at every 100th iteration
-        if i%100 == 0:
-          train_accuracy = accuracy.eval(feed_dict={
+        if i%100 == 0: 
+            train_accuracy = accuracy.eval(feed_dict={
               x:batch[0], y_: batch[1], keep_prob: 1.0})
-        print "Epoch: %d step %d, training accuracy %g"%(e, i, train_accuracy)
-        valid_accuracy = accuracy.eval(feed_dict={
-            x:valSet[0], y_: valSet[1], keep_prob: 1.0})
-        print "                 , Validation accuracy %g"%(valid_accuracy)
+            print "Epoch: %d step %d, training accuracy %g"%(e, i, train_accuracy)
+        #valid_accuracy = accuracy.eval(feed_dict={
+        #    x:valSet[0], y_: valSet[1], keep_prob: 1.0})
+        #print "                 , Validation accuracy %g"%(valid_accuracy)
         train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
     
     # Printing Test Accuracy after each Epoch
