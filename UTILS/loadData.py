@@ -4,6 +4,7 @@ FileName: loadData.py
 Abstract: Read Pre-Trained Word Vectors (Glove/Word2Vec) and
           And Corpus, and create a training, test and validation
           split.
+Author  : Vaibhav Singh
 Attribution:
 ------------
     -
@@ -72,12 +73,6 @@ class corpus(object):
                 print ("Format: %s, Reading %s ....."  %(format,
                                                          phraseDictionaryFile))
                 vectorDict={}
-                def word2Vector(word):
-                    # set default vector to 0
-                    vector=['0']*self.wvDim
-                    for wvd in self.wvList:
-                        if word in wvd: return wvd[word]
-                    return vector
     
     
                 for aline in f:
@@ -85,7 +80,7 @@ class corpus(object):
                     vector=[]
                     #Prepare Word vectors
                     for count, w in enumerate(phrase.split()):
-                        vector.append(word2Vector(w))
+                        vector.append(self.word2Vector(w))
                     # Zero padding for smaller sentence/phrase
                     for i in range(count+1,self.maxwords):
                         vector.append(['0']*self.wvDim)
@@ -99,11 +94,11 @@ class corpus(object):
                     # Just to work with mismatched subsets in trials
                     if id in vectorDict:
                         p=float(p)
-                        if   p <= 0.2: label=0
-                        elif p <= 0.4: label=1
-                        elif p <= 0.6: label=2
-                        elif p <= 0.8: label=3
-                        elif p <= 1.0: label=4
+                        if   p <= 0.2: label=[1,0,0,0,0]
+                        elif p <= 0.4: label=[0,1,0,0,0]
+                        elif p <= 0.6: label=[0,0,1,0,0]
+                        elif p <= 0.8: label=[0,0,0,1,0]
+                        elif p <= 1.0: label=[0,0,0,0,1]
                         dX+=vectorDict[id]
                         dY.append(label)
             f.close()
@@ -111,11 +106,49 @@ class corpus(object):
             #print dX
             self.X=np.array(dX,
                        dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
-            self.Y=np.array(dY, dtype='int')
+            #self.Y=np.array(dY, dtype='int')
+            self.Y=np.array(dY, dtype='int').reshape((self.numExamples,5))
 
-    def createSplit(self, ttvSplit=[0.60,0.30,0.10]):
+        if format == 'mr': #https://www.cs.cornell.edu/people/pabo/movie-review-data/rt-polaritydata.tar.gz
+            # rt-polaritydata is organizd as:
+            # rt-polaritydata/rt-polarity.neg, rt-polaritydata/rt-polarity.pos
+            # in this case the dataset is expected as neg, pos file
+            negSet, posSet = dataSet
+            with open(negSet, 'r') as f:
+                print ("Format: %s, Reading %s ....."  %(format,negSet))
+                for aline in f:
+                    for count, w in enumerate(aline.rstrip().split()):
+                        dX.append(self.word2Vector(w))
+                    # Zero padding for smaller sentence/phrase
+                    for i in range(count+1,self.maxwords):
+                        dX.append(['0']*self.wvDim)
+                    dY.append([1,0])
+            f.close()
+            with open(negSet, 'r') as f:
+                print ("Format: %s, Reading %s ....."  %(format,posSet))
+                for aline in f:
+                    for count, w in enumerate(aline.rstrip().split()):
+                        dX.append(self.word2Vector(w))
+                    # Zero padding for smaller sentence/phrase
+                    for i in range(count+1,self.maxwords):
+                        dX.append(['0']*self.wvDim)
+                    dY.append([0,1])
+            f.close()
+            self.numExamples=len(dY)
+            self.X=np.array(dX,
+                       dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
+            #self.Y=np.array(dY, dtype='int')
+            self.Y=np.array(dY, dtype='int').reshape((self.numExamples,2))
+    def word2Vector(self,word):
+        # set default vector to 0
+        vector=['0']*self.wvDim
+        for wvd in self.wvList:
+            if word in wvd: return wvd[word]
+        return vector
+
+    def createSplit(self, ttvSplit=[0.80,0.10,0.10]):
         tr,tst,vld = ttvSplit
-        self.X, self.Y = shuffle(self.X, self.Y, random_state=42)
+        self.X, self.Y = shuffle(self.X, self.Y, random_state=97)
         N=self.numExamples
         train=int(N*tr)
         test=train+int(N*tst)
@@ -124,12 +157,21 @@ class corpus(object):
                 (self.X[test:],self.Y[test:])
         
 if __name__ == '__main__':
-    #preTrainedVec='/Users/MAVERICK/Documents/CS221/project/work_area/JARVIS/PRE-TRAINED/vectors.6B.100d.txt'
     preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa']
-    phraseFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleDictionary.txt'
-    labelFile='/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleLables.txt'
+    DS = { 'sst':
+                # (phraseFile,labelFile) 
+                ('/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleDictionary.txt',
+                 '/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/sampleLables.txt'),
+           'mr':
+               #(Neg,Pos)
+               ('/Users/MAVERICK/Documents/CS221/project/work_area/MR/rt-polaritydata/rt-polarity.neg',
+                '/Users/MAVERICK/Documents/CS221/project/work_area/MR/rt-polaritydata/rt-polarity.pos'
+               )
+              }
+               
     pv=preTrainedVectors(preTrainedVecFiles)
-    dataSet=corpus(pv,(phraseFile,labelFile))
+    format='mr'
+    dataSet=corpus(pv,DS[format],format)
     d1,d2,d3=dataSet.createSplit()
     print type(d3[1]), d3[1].shape, type(d3[0]), d3[0].shape
     
