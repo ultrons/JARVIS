@@ -29,6 +29,7 @@ class preTrainedVectors(object):
     def __init__(self,vectorFiles):
         self.timeRecord={}
         self.wvList=[]
+        self.wvDim=0
         for afile in vectorFiles:
             w2v={}
             print ("Reading File: %s" %afile)
@@ -37,7 +38,8 @@ class preTrainedVectors(object):
             for aline in fp:
                 lineVector=aline.rstrip().split()
                 word=lineVector[0]
-                w2v[word]=lineVector[1:]
+                w2v[word]=np.array(lineVector[1:], dtype='float')
+                if self.wvDim == 0 : self.wvDim = len(lineVector) - 1
             self.wvList.append(w2v)
             self.timeRecord[afile]=timeit.default_timer() - localStartTime
             fp.close()
@@ -51,13 +53,13 @@ class preTrainedVectors(object):
         fp.close()
         self.timeRecord['pickleDump']=timeit.default_timer()-pickleDumpStart
 
-class corpus(object):
+class loadCorpus(object):
     #Vector parameters
     # dataSet Format:
     #    sst: (phraseFile, labelFile)
     #    pol:  
     #    xxx:  
-    def __init__(self,preTrainedVectors, dataSet,format='sst',maxwords=60,wvDim=100):
+    def __init__(self,preTrainedVectors, dataSetDict,format='sst',maxwords=60,wvDim=300):
         #Load Pretrained vectors
         #super(preTrainedVectors,self).__init__()
         # Parse Corpus
@@ -66,7 +68,8 @@ class corpus(object):
         self.maxwords=maxwords
         dX=[]
         dY=[]
-        if format == 'sst': # Stanford Tree Bank format
+        dataSet=dataSetDict[format]
+        if format == 'sst' or format == 'sst-toy': # Stanford Tree Bank format
             phraseDictionaryFile, labelFile = dataSet
             # Reading phrase dictionary
             with open(phraseDictionaryFile, 'r') as f:
@@ -83,7 +86,7 @@ class corpus(object):
                         vector.append(self.word2Vector(w))
                     # Zero padding for smaller sentence/phrase
                     for i in range(count+1,self.maxwords):
-                        vector.append(['0']*self.wvDim)
+                        vector.append(np.zeros(self.wvDim))
                     vectorDict[id]=vector
             f.close()
             # Reading Label dictionary
@@ -103,13 +106,12 @@ class corpus(object):
                         dY.append(label)
             f.close()
             self.numExamples=len(dY)
-            #print dX
             self.X=np.array(dX,
-                       dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
-            #self.Y=np.array(dY, dtype='int')
+                       dtype='float64').flatten().reshape((self.numExamples,self.maxwords*self.wvDim))
             self.Y=np.array(dY, dtype='int').reshape((self.numExamples,5))
 
-        if format == 'mr': #https://www.cs.cornell.edu/people/pabo/movie-review-data/rt-polaritydata.tar.gz
+        if format == 'mr' or format == 'mr-toy': 
+            # https://www.cs.cornell.edu/people/pabo/movie-review-data/rt-polaritydata.tar.gz
             # rt-polaritydata is organizd as:
             # rt-polaritydata/rt-polarity.neg, rt-polaritydata/rt-polarity.pos
             # in this case the dataset is expected as neg, pos file
@@ -121,7 +123,8 @@ class corpus(object):
                         dX.append(self.word2Vector(w))
                     # Zero padding for smaller sentence/phrase
                     for i in range(count+1,self.maxwords):
-                        dX.append(['0']*self.wvDim)
+                        #dX.append(['0']*self.wvDim)
+                        dX.append(np.zeros(self.wvDim))
                     dY.append([1,0])
             f.close()
             with open(negSet, 'r') as f:
@@ -131,7 +134,8 @@ class corpus(object):
                         dX.append(self.word2Vector(w))
                     # Zero padding for smaller sentence/phrase
                     for i in range(count+1,self.maxwords):
-                        dX.append(['0']*self.wvDim)
+                        #dX.append(['0']*self.wvDim)
+                        dX.append(np.zeros(self.wvDim))
                     dY.append([0,1])
             f.close()
             self.numExamples=len(dY)
@@ -141,20 +145,25 @@ class corpus(object):
             self.Y=np.array(dY, dtype='int').reshape((self.numExamples,2))
     def word2Vector(self,word):
         # set default vector to 0
-        vector=['0']*self.wvDim
+        vector=np.zeros(self.wvDim)
         for wvd in self.wvList:
             if word in wvd: return wvd[word]
         return vector
 
-    def createSplit(self, ttvSplit=[0.80,0.10,0.10]):
+    def createSplit(self, ttvSplit=[0.60,0.20,0.20]):
         tr,tst,vld = ttvSplit
         self.X, self.Y = shuffle(self.X, self.Y, random_state=97)
         N=self.numExamples
         train=int(N*tr)
         test=train+int(N*tst)
-        return (self.X[:train],self.Y[:train]), \
+        (d1, d2, d3)=  (self.X[:train],self.Y[:train]), \
                 (self.X[train:test],self.Y[train:test]),  \
                 (self.X[test:],self.Y[test:])
+        print ("Split Info:")
+        print ("Traning Examples: %d" %d1[1].shape[0])
+        print ("Test Examples: %d" %d2[1].shape[0])
+        print ("Validation Examples: %d" %d3[1].shape[0])
+        return d1, d2, d3
         
 if __name__ == '__main__':
     preTrainedVecFiles=['/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa']
@@ -171,7 +180,7 @@ if __name__ == '__main__':
                
     pv=preTrainedVectors(preTrainedVecFiles)
     format='mr'
-    dataSet=corpus(pv,DS[format],format)
+    dataSet=loadCorpus(pv,DS,format)
     d1,d2,d3=dataSet.createSplit()
     print type(d3[1]), d3[1].shape, type(d3[0]), d3[0].shape
     
