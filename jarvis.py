@@ -54,6 +54,9 @@ def readCommand( argv ):
   parser.add_option('-l', '--method', dest='library',
                     help=default('LIBRARY to Use'),
                     metavar='LIBRARY', default='tensorFlow')
+  parser.add_option('-m', '--modelFile', dest='modelFile',
+                    help=default('MODELFILE , model will be saved to'),
+                    metavar='MODELFILE', default='./model.f')
   options, otherjunk = parser.parse_args(argv)
   if len(otherjunk) != 0:
     raise Exception('Command line input not understood: ' + str(otherjunk))
@@ -62,6 +65,7 @@ def readCommand( argv ):
   args['corpus']=options.corpus
   args['preTrainVec']=options.preTrainVec
   args['trainConfig']=options.trainConfig
+  args['modelFile']=options.modelFile
   args['networkConfig']=options.networkConfig
   args['library']=options.library
   return args
@@ -69,7 +73,8 @@ def readCommand( argv ):
 
 
 
-def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library):
+def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
+            modelFile):
     # Available Pre-Trained Vectors
     preTrainedVecFiles={ 'glove':
                     '/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/glove/glove.840B.300d.txt' ,
@@ -87,11 +92,16 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library):
                ('/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/Sample.rt-polarity.neg',
                 '/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/Sample.rt-polarity.pos'
                ),
+
            'mr':
                #(Neg,Pos)
                ('/Users/MAVERICK/Documents/CS221/project/work_area/MR/rt-polaritydata/rt-polarity.neg',
                 '/Users/MAVERICK/Documents/CS221/project/work_area/MR/rt-polaritydata/rt-polarity.pos'
-               )
+               ),
+            'sst': 
+                    ('/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/sst/dictionary.txt',
+                     '/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/sst/sentiment_labels.txt'
+                    )
               }
     # Available Network Options
     networkConfigSet = {
@@ -104,7 +114,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library):
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
             'convPoolLayers':[([(5, 5)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
-            'fullyConnectedLayerDim':100,
+            'fullyConnectedLayerDim':60,
             # SoftMaxLayer
             'softMaxLayerDim':5
         },
@@ -195,8 +205,8 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library):
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
             'convPoolLayers':[
                 ([(4, 4), (3, 3)], 32, 2, 2, 1, 1),
-                ([(2, 2), (5, 5)], 64, 2, 2, 1, 1),
-                ([(6, 6), (8, 8)], 64, 5, 5, 1, 1)
+                ([(2, 2), (5, 5)], 32, 2, 2, 1, 1),
+                ([(6, 6), (8, 8)], 32, 5, 5, 1, 1)
             ],
             #'convPoolLayers':[([(3, 100), (4, 100)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
@@ -243,23 +253,91 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library):
             # Y dimension comes from size of word vectors
             'maxWords': 60,
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
-            'convPoolLayers':[([(3, 3), (4, 4), (5, 5)], 64, 2, 2, 1, 1)],
+            'convPoolLayers':[([(5, 5), (7, 7)], 20, 2, 2, 1, 1)],
             #'convPoolLayers':[([(3, 100), (4, 100)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
             'fullyConnectedLayerDim':60,
             # SoftMaxLayer
             'softMaxLayerDim':5
+        },
+        'CNN-10': {
+            'type': 'CNN',
+            # Max words per phrase
+            # Also decides X Dimension of the phrase image
+            # Y dimension comes from size of word vectors
+            'maxWords': 60,
+            # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
+            'convPoolLayers':[([(5, 5), (7,7)], 20, 2, 2, 1, 1)],
+            # Assuming there is only one fully connected layer
+            'fullyConnectedLayerDim':60,
+            # SoftMaxLayer
+            'softMaxLayerDim':2
+        },
+        'CNN-11': {
+            'type': 'CNN',
+            # Max words per phrase
+            # Also decides X Dimension of the phrase image
+            # Y dimension comes from size of word vectors
+            'maxWords': 60,
+            # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
+            'convPoolLayers':[
+                ([(5, 5)],    20, 2, 2, 1, 1),
+                ([(7, 7)],    20, 2, 2, 1, 1)
+            ],
+            # Assuming there is only one fully connected layer
+            'fullyConnectedLayerDim':60,
+            # SoftMaxLayer
+            'softMaxLayerDim':2
+        },
+        'CNN-12': {
+            'type': 'CNN',
+            # Max words per phrase
+            # Also decides X Dimension of the phrase image
+            # Y dimension comes from size of word vectors
+            'maxWords': 60,
+            # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
+            'convPoolLayers':[
+                ([(5, 5)],    20, 2, 2, 1, 1),
+                ([(7, 7)],    20, 2, 2, 1, 1),
+                ([(11, 11)],    20, 5, 5, 1, 1)
+            ],
+            # Assuming there is only one fully connected layer
+            'fullyConnectedLayerDim':60,
+            # SoftMaxLayer
+            'softMaxLayerDim':2
+        },
+        'CNN-13': {
+            'type': 'CNN',
+            # Max words per phrase
+            # Also decides X Dimension of the phrase image
+            # Y dimension comes from size of word vectors
+            'maxWords': 60,
+            # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
+            'convPoolLayers':[
+                ([(7, 10)],    10, 2, 2, 1, 1),
+                ([(5, 10)],    10, 2, 2, 1, 1)
+            ],
+            # Assuming there is only one fully connected layer
+            'fullyConnectedLayerDim':32,
+            # SoftMaxLayer
+            'softMaxLayerDim':2
+        },
+        'CNN-14': {
+            'type': 'CNN',
+            # Max words per phrase
+            # Also decides X Dimension of the phrase image
+            # Y dimension comes from size of word vectors
+            'maxWords': 60,
+            # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
+            'convPoolLayers':[
+                ([(7, 10)],    10, 2, 2, 1, 1),
+                ([(5, 10)],    10, 2, 2, 1, 1)
+            ],
+            # Assuming there is only one fully connected layer
+            'fullyConnectedLayerDim':32,
+            # SoftMaxLayer
+            'softMaxLayerDim':5
         }
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -343,7 +421,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library):
                 training_data, validation_data, test_data = dataSet.createSplit(dataSplit)
                 network=tfNetwork(mini_batch_size, epochs, optimizer,
                                   networkSpec, training_data,
-                                 test_data, validation_data)
+                                 test_data, validation_data, modelFile)
                 network.setInput(imageX, imageY)
                 network.build()
                 network.train()
