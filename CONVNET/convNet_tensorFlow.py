@@ -14,10 +14,11 @@ from sklearn.utils import shuffle
 import loadData as ld
 # Import tensorflow as usual
 import tensorflow as tf
+from datetime import datetime
 
 class tfNetwork(object):
-    def __init__(self,mini_batch_size,epochs, optimizer, networkSpec,trainSet, testSet, valSet):
-        tf.set_random_seed(1234)
+    def __init__(self,mini_batch_size,epochs, optimizer, networkSpec,trainSet, testSet, valSet, modelFile):
+        tf.set_random_seed(786)
         self.mini_batch_size=mini_batch_size
         self.epochs=epochs
         self.networkSpec=networkSpec
@@ -28,6 +29,10 @@ class tfNetwork(object):
         self.numClasses=networkSpec['softMaxLayerDim']
         self.trainPointer=0
         self.trainSetSize=trainSet[1].shape[0]
+        modelFileSuffix=str(datetime.now())
+        modelFileSuffix=modelFileSuffix.replace(' ','_')
+        modelFileSuffix=modelFileSuffix.replace(':','_')
+        self.modelFile=modelFile+'_'+modelFileSuffix
 
     def setInput(self, imageX, imageY):
         self.imageX=imageX
@@ -52,7 +57,7 @@ class tfNetwork(object):
     # Need to do some gradient calculation on paper
     # TO BE UPDATED....
     def weight_variable(self,shape):
-        initial = tf.truncated_normal(shape, stddev=0.08)
+        initial = tf.truncated_normal(shape, stddev=0.08, seed=786)
         return tf.Variable(initial)
     def bias_variable(self,shape):
         initial= tf.constant(0.1, shape=shape)
@@ -135,9 +140,9 @@ class tfNetwork(object):
         return b,self.trainPointer
     def computeAcuracy(self, data):
         Pointer=0
-        batch_size=1000
+        batch_size=700
         accData=[]
-        while Pointer < self.valSet[1].shape[0]:
+        while Pointer < data[1].shape[0]:
             batch=(
                 data[0][Pointer:Pointer+batch_size],
                 data[1][Pointer:Pointer+batch_size]
@@ -157,7 +162,7 @@ class tfNetwork(object):
         # Define update node with the choice of optimizer
         if self.optimizer == 'ADAM': 
            train_step = tf.train.AdamOptimizer(
-               learning_rate=0.002, beta1=0.9, beta2=0.999, epsilon=5e-3
+               learning_rate=0.0001, beta1=0.9, beta2=0.999, epsilon=5e-3
                ).minimize(cross_entropy)
         if self.optimizer == 'ADAGRAD': 
            train_step = tf.train.AdagradOptimizer(
@@ -169,6 +174,7 @@ class tfNetwork(object):
         #                              tf.cast(self.y_, 'float'))
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
+        saver = tf.train.Saver()
         sess = tf.InteractiveSession()
         # Initialize all variables
         sess.run(tf.initialize_all_variables())
@@ -179,18 +185,28 @@ class tfNetwork(object):
             self.trainSet = shuffle(self.trainSet[0], self.trainSet[1])
             for i in range(int(self.trainSetSize/self.mini_batch_size)):
                 batch, batchNumber = self.nextBatch()
-                #if batch[1].shape[0] == 0: continue
+                if batch[1].shape[0] == 0: 
+                    print "Warning Empty batch !!!!", i, "skipping!!!!"
+                    continue
+                
                 train_step.run(feed_dict={self.x: batch[0], self.y_: batch[1],
                                           self.keep_prob: 0.5})
                 #f = int(self.trainSetSize*0.1/self.mini_batch_size) == 0
                 #if f == 0: f = 1
-                f=1
+                f=100
                 if i % f == 0 :
                     train_accuracy = self.accuracy.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+                    print "VA estimate Start.."
                     validation_accuracy=self.computeAcuracy(self.valSet)
                     print "Batch %d: TRaining Accuracy: %g, Validation Accuracy:%g " %(i,train_accuracy, validation_accuracy)
                     if validation_accuracy >= bestAccuracy:
+                        modelFile=self.modelFile+'_E'+str(e)+'_B'+str(i)
+                        save_path = saver.save(sess, modelFile)
+                        print "Model saved in file: ", save_path
+                        
+                        print "VA comparison Start.."
                         bestAccuracy = validation_accuracy
+                        print "TA estimate Start.."
                         test_accuracy=self.computeAcuracy(self.testSet)
             print "Epoch: %d , best Validation Accuracy: %g, corresponding test Accuracy %g" %(e, bestAccuracy, test_accuracy)
         sess.close()
