@@ -17,7 +17,8 @@ import tensorflow as tf
 from datetime import datetime
 
 class tfNetwork(object):
-    def __init__(self,mini_batch_size,epochs, optimizer, networkSpec,trainSet, testSet, valSet, modelFile):
+    def __init__(self,mini_batch_size,epochs, optimizer, networkSpec,trainSet,
+                 testSet, valSet, modelFile, startPoint):
         tf.set_random_seed(786)
         self.mini_batch_size=mini_batch_size
         self.epochs=epochs
@@ -33,6 +34,7 @@ class tfNetwork(object):
         modelFileSuffix=modelFileSuffix.replace(' ','_')
         modelFileSuffix=modelFileSuffix.replace(':','_')
         self.modelFile=modelFile+'_'+modelFileSuffix
+        self.startPoint=startPoint
 
     def setInput(self, imageX, imageY):
         self.imageX=imageX
@@ -90,7 +92,7 @@ class tfNetwork(object):
                 XY=[(self.imageX, self.imageY)]*len(filterSpec)
 
             for filter_id, (filterX,filterY) in enumerate(filterSpec):
-                print "HIT", filterX,filterY,channels[filter_id],filterCount
+                #print "HIT", filterX,filterY,channels[filter_id],filterCount
                 W_conv.append(self.weight_variable([filterX,filterY,channels[filter_id],filterCount]))
                 b_conv.append(self.bias_variable([filterCount]))
                 h_conv.append(tf.nn.relu(self.conv2d(h_conv_r[filter_id], W_conv[-1], strideX,
@@ -99,7 +101,7 @@ class tfNetwork(object):
                 totalChannels.append(filterCount)
                 #print "HIT",  XY[-1][0]/strideX,filterX, XY[-1][1]/strideY,filterY
                 XY_r.append(((XY[filter_id][0]/strideX/poolX),(XY[filter_id][1]/strideY/poolY)))
-                print "HOT", XY_r[filter_id][0], XY_r[filter_id][1], filterCount
+               # print "HOT", XY_r[filter_id][0], XY_r[filter_id][1], filterCount
                 pooledSamples+=XY_r[filter_id][0]*XY_r[filter_id][1]*filterCount
                # print pooledSamples
             h_conv_r=h_pool
@@ -140,7 +142,8 @@ class tfNetwork(object):
         return b,self.trainPointer
     def computeAcuracy(self, data):
         Pointer=0
-        batch_size=700
+        #batch_size=data[1].shape[0]
+        batch_size=500
         accData=[]
         while Pointer < data[1].shape[0]:
             batch=(
@@ -177,7 +180,11 @@ class tfNetwork(object):
         saver = tf.train.Saver()
         sess = tf.InteractiveSession()
         # Initialize all variables
-        sess.run(tf.initialize_all_variables())
+        if self.startPoint is None: 
+            sess.run(tf.initialize_all_variables())
+        else:
+            saver.restore(sess, self.startPoint)
+            
         
         # Perform Training
         for e in range(self.epochs):
@@ -193,10 +200,9 @@ class tfNetwork(object):
                                           self.keep_prob: 0.5})
                 #f = int(self.trainSetSize*0.1/self.mini_batch_size) == 0
                 #if f == 0: f = 1
-                f=100
+                f=1
                 if i % f == 0 :
                     train_accuracy = self.accuracy.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
-                    print "VA estimate Start.."
                     validation_accuracy=self.computeAcuracy(self.valSet)
                     print "Batch %d: TRaining Accuracy: %g, Validation Accuracy:%g " %(i,train_accuracy, validation_accuracy)
                     if validation_accuracy >= bestAccuracy:
@@ -204,9 +210,7 @@ class tfNetwork(object):
                         save_path = saver.save(sess, modelFile)
                         print "Model saved in file: ", save_path
                         
-                        print "VA comparison Start.."
                         bestAccuracy = validation_accuracy
-                        print "TA estimate Start.."
                         test_accuracy=self.computeAcuracy(self.testSet)
             print "Epoch: %d , best Validation Accuracy: %g, corresponding test Accuracy %g" %(e, bestAccuracy, test_accuracy)
         sess.close()

@@ -17,7 +17,7 @@ from pprint import pprint
 
 import loadData as ld
 from convNet_tensorFlow import *
-from convNet_theano import *
+#from convNet_theano import *
 
 def default(str):
   return str + ' [Default: %default]'
@@ -46,8 +46,8 @@ def readCommand( argv ):
                     help=default('Training Configrations'),
                     metavar='TRAINCONFIG', default='T-toy')
   parser.add_option('-p', '--preTrainVec', dest='preTrainVec',
-                    help=default('Pre-Trained Vector to Use'),
-                    metavar='TRAINCONFIG', default='word2vec')
+                    help=default('Pre-Trained VECTOR to Use'),
+                    metavar='VECTOR', default='word2vec')
   parser.add_option('-c', '--corpus', dest='corpus',
                     help=default('Corpus to Use'),
                     metavar='CORPUS', default='mr-toy')
@@ -57,6 +57,9 @@ def readCommand( argv ):
   parser.add_option('-m', '--modelFile', dest='modelFile',
                     help=default('MODELFILE , model will be saved to'),
                     metavar='MODELFILE', default='./model.f')
+  parser.add_option('-s', '--startPoint', dest='startPoint',
+                    help=default('STARTPOINT , MODELFILE to load'),
+                    metavar='MODELFILE', default=None)
   options, otherjunk = parser.parse_args(argv)
   if len(otherjunk) != 0:
     raise Exception('Command line input not understood: ' + str(otherjunk))
@@ -68,18 +71,21 @@ def readCommand( argv ):
   args['modelFile']=options.modelFile
   args['networkConfig']=options.networkConfig
   args['library']=options.library
+  args['startPoint']=options.startPoint
   return args
 
 
 
 
 def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
-            modelFile):
+            modelFile, startPoint):
     # Available Pre-Trained Vectors
     preTrainedVecFiles={ 'glove':
                     '/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/glove/glove.840B.300d.txt' ,
                      'word2vec':
-                    '/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa'
+                    '/Users/sumitsaxena/Desktop/AI/CS221/Project/JARVIS/dataset/vectors.6B.100d.txt',
+                     'word2vec-toy':
+                    '/Users/sumitsaxena/Desktop/AI/CS221/Project/JARVIS/dataset/vectors.6B.100d.toy.txt'
                        }
     # Available Corpuses
     dataSetFiles = { 'sst-toy':
@@ -101,6 +107,12 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             'sst': 
                     ('/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/sst/dictionary.txt',
                      '/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/sst/sentiment_labels.txt'
+                    ),
+            'sst2': 
+                    (
+                        '/Users/sumitsaxena/Desktop/AI/CS221/Project/treelstm/data/sst/train/sentlabels.txt',
+                        '/Users/sumitsaxena/Desktop/AI/CS221/Project/treelstm/data/sst/test/sentlabels.txt',
+                        '/Users/sumitsaxena/Desktop/AI/CS221/Project/treelstm/data/sst/dev/sentlabels.txt'
                     )
               }
     # Available Network Options
@@ -125,10 +137,10 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             # Y dimension comes from size of word vectors
             'maxWords': 60,
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
-            'convPoolLayers':[([(3, 100), (4, 100), (5, 100)], 20, 2, 2, 1, 1)],
+            'convPoolLayers':[([(3, 100), (4, 100), (5, 100)], 100, 2, 2, 1, 1)],
             #'convPoolLayers':[([(3, 100), (4, 100)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
-            'fullyConnectedLayerDim':200,
+            'fullyConnectedLayerDim':60,
             # SoftMaxLayer
             'softMaxLayerDim':5
         },
@@ -421,7 +433,8 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
                 training_data, validation_data, test_data = dataSet.createSplit(dataSplit)
                 network=tfNetwork(mini_batch_size, epochs, optimizer,
                                   networkSpec, training_data,
-                                 test_data, validation_data, modelFile)
+                                 test_data, validation_data, modelFile,
+                                  startPoint)
                 network.setInput(imageX, imageY)
                 network.build()
                 network.train()

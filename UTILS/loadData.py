@@ -63,6 +63,7 @@ class loadCorpus(object):
         #Load Pretrained vectors
         #super(preTrainedVectors,self).__init__()
         # Parse Corpus
+        self.ttvSplit=None
         self.wvList=preTrainedVectors.wvList
         self.wvDim=wvDim
         self.maxwords=maxwords
@@ -143,6 +144,35 @@ class loadCorpus(object):
                        dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
             #self.Y=np.array(dY, dtype='int')
             self.Y=np.array(dY, dtype='int').reshape((self.numExamples,2))
+
+        if format == 'sst2' or format == 'sst2-toy':
+            trainSet, testSet, valSet = dataSet
+            self.ttvSplit=[]
+            for afile in dataSet:
+                with open(afile, 'r') as f:
+                    print ("Format: %s, Reading %s ....."  %(format,afile))
+                    lineCount=0
+                    for bline in f:
+                        labelVector=[0]*5
+                        aline,label=bline.split('|')
+                        for count, w in enumerate(aline.rstrip().split()):
+                            dX.append(self.word2Vector(w))
+                        # Zero padding for smaller sentence/phrase
+                        for i in range(count+1,self.maxwords):
+                            #dX.append(['0']*self.wvDim)
+                            dX.append(np.zeros(self.wvDim))
+                        labelPos=int(label)+2
+                        labelVector[labelPos]=1
+                        dY.append(labelVector)
+                        lineCount+=1
+                    self.ttvSplit.append(lineCount)
+
+                f.close()
+            self.numExamples=len(dY)
+            self.X=np.array(dX,
+                       dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
+            self.Y=np.array(dY, dtype='int').reshape((self.numExamples,5))
+
     def word2Vector(self,word):
         # set default vector to 0
         vector=np.zeros(self.wvDim)
@@ -151,9 +181,15 @@ class loadCorpus(object):
         return vector
 
     def createSplit(self, ttvSplit=[0.60,0.20,0.20]):
+        if self.ttvSplit is not None:
+            ttvSplit=self.ttvSplit
+            print ("REcommended Split for the dataSet, Any input passed to createSplit will be overridden")
+            N=1
+        else:
+            N=self.numExamples
+
         tr,tst,vld = ttvSplit
         self.X, self.Y = shuffle(self.X, self.Y, random_state=97)
-        N=self.numExamples
         train=int(N*tr)
         test=train+int(N*tst)
         (d1, d2, d3)=  (self.X[:train],self.Y[:train]), \
