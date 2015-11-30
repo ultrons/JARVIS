@@ -70,6 +70,9 @@ class loadCorpus(object):
         dX=[]
         dY=[]
         dataSet=dataSetDict[format]
+        self.format=format
+        self.interimNodeVector=np.random.random(self.wvDim)
+        self.rootNodeVector=np.ones(self.wvDim)
         if format == 'sst' or format == 'sst-toy': # Stanford Tree Bank format
             phraseDictionaryFile, labelFile = dataSet
             # Reading phrase dictionary
@@ -145,7 +148,7 @@ class loadCorpus(object):
             #self.Y=np.array(dY, dtype='int')
             self.Y=np.array(dY, dtype='int').reshape((self.numExamples,2))
 
-        if format == 'sst2' or format == 'sst2-toy':
+        if format == 'sst2' or format == 'sst2-toy' or format == 'sst2-ordered':
             trainSet, testSet, valSet = dataSet
             self.ttvSplit=[]
             for afile in dataSet:
@@ -211,6 +214,10 @@ class loadCorpus(object):
 
     def word2Vector(self,word):
         # set default vector to 0
+        if word == 'KETENE@KETENE':
+            return self.interimNodeVector
+        if word == 'ROOT@ROOT':
+            return self.rootNodeVector
         vector=np.zeros(self.wvDim)
         for wvd in self.wvList:
             if word in wvd: return wvd[word]
