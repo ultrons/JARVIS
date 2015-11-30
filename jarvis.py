@@ -83,9 +83,9 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
     preTrainedVecFiles={ 'glove':
                     '/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/glove/glove.840B.300d.txt' ,
                      'word2vec':
-                    '/Users/sumitsaxena/Desktop/AI/CS221/Project/JARVIS/dataset/vectors.6B.100d.txt',
+                    '/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.txt',
                      'word2vec-toy':
-                    '/Users/sumitsaxena/Desktop/AI/CS221/Project/JARVIS/dataset/vectors.6B.100d.toy.txt'
+                    '/Users/MAVERICK/Documents/CS221/project/work_area/SCRATCH/vectors.6B.100d.splitted.aaa'
                        }
     # Available Corpuses
     dataSetFiles = { 'sst-toy':
@@ -151,10 +151,10 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             # Y dimension comes from size of word vectors
             'maxWords': 60,
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
-            'convPoolLayers':[([(3, 100), (4, 100), (5, 100)], 20, 2, 2, 1, 1)],
+            'convPoolLayers':[([(3, 100), (4, 100), (5, 100)], 100, 2, 2, 1, 1)],
             #'convPoolLayers':[([(3, 100), (4, 100)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
-            'fullyConnectedLayerDim':200,
+            'fullyConnectedLayerDim':60,
             # SoftMaxLayer
             'softMaxLayerDim':2
         },
@@ -361,7 +361,8 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             'epochs':5,
             'optimizer': 'ADAM',
             'keep_prob': 0.5,
-            'dataSplit': [0.7,0.2,0.1]
+            'dataSplit': [0.7,0.2,0.1],
+            'normLimit': 3
         }
     }
     # Print available Configs
@@ -387,7 +388,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
         # Load Pre-Trained Vectors
         pv=ld.preTrainedVectors(preTrVecFiles)
         # Load dataSet
-        dataSet=ld.loadCorpus(pv,dataSetFiles,corpus,wvDim=pv.wvDim)
+        dataSet=ld.loadCorpus(pv,dataSetFiles,corpus,wvDim=pv.wvDim, maxwords=networkConfigSet[networkConfig]['maxWords'])
         # Network Specs
         networkSpec=networkConfigSet[networkConfig]
         fullyConnectedLayerDim=networkSpec['fullyConnectedLayerDim']
@@ -434,7 +435,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
                 network=tfNetwork(mini_batch_size, epochs, optimizer,
                                   networkSpec, training_data,
                                  test_data, validation_data, modelFile,
-                                  startPoint)
+                                  startPoint, trainingSpec['normLimit'])
                 network.setInput(imageX, imageY)
                 network.build()
                 network.train()

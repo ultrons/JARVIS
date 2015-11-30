@@ -172,6 +172,42 @@ class loadCorpus(object):
             self.X=np.array(dX,
                        dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
             self.Y=np.array(dY, dtype='int').reshape((self.numExamples,5))
+        '''
+        subjectivity dataset:
+        from the URL http://www.cs.cornell.edu/people/pabo/movie-review-data .
+        '''
+        if format == 'subj' or format == 'subj-toy': 
+            subjectiveData, objectiveData = dataSet
+            with open(subjectiveData, 'r') as f:
+                print ("Format: %s, Reading %s ....."  %(format,subjectiveData))
+                for aline in f:
+                    for count, w in enumerate(aline.rstrip().split()):
+                        dX.append(self.word2Vector(w))
+                    # Zero padding for smaller sentence/phrase
+                    for i in range(count+1,self.maxwords):
+                        #dX.append(['0']*self.wvDim)
+                        dX.append(np.zeros(self.wvDim))
+                    dY.append([1,0])
+            f.close()
+            with open(objectiveData, 'r') as f:
+                print ("Format: %s, Reading %s ....."  %(format,objectiveData))
+                for aline in f:
+                    for count, w in enumerate(aline.rstrip().split()):
+                        dX.append(self.word2Vector(w))
+                    # Zero padding for smaller sentence/phrase
+                    for i in range(count+1,self.maxwords):
+                        #dX.append(['0']*self.wvDim)
+                        dX.append(np.zeros(self.wvDim))
+                    dY.append([0,1])
+            f.close()
+            self.numExamples=len(dY)
+            self.X=np.array(dX,
+                       dtype='float64').reshape((self.numExamples,self.maxwords*self.wvDim))
+            #self.Y=np.array(dY, dtype='int')
+            self.Y=np.array(dY, dtype='int').reshape((self.numExamples,2))
+
+
+
 
     def word2Vector(self,word):
         # set default vector to 0

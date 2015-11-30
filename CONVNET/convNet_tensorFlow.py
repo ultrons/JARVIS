@@ -18,7 +18,7 @@ from datetime import datetime
 
 class tfNetwork(object):
     def __init__(self,mini_batch_size,epochs, optimizer, networkSpec,trainSet,
-                 testSet, valSet, modelFile, startPoint):
+                 testSet, valSet, modelFile, startPoint, normMax):
         tf.set_random_seed(786)
         self.mini_batch_size=mini_batch_size
         self.epochs=epochs
@@ -35,6 +35,7 @@ class tfNetwork(object):
         modelFileSuffix=modelFileSuffix.replace(':','_')
         self.modelFile=modelFile+'_'+modelFileSuffix
         self.startPoint=startPoint
+        self.normMax=normMax
 
     def setInput(self, imageX, imageY):
         self.imageX=imageX
@@ -72,8 +73,8 @@ class tfNetwork(object):
                               padding='SAME')
 
     def build(self):
-        W_conv=[]
-        b_conv=[]
+        self.W_conv=[]
+        self.b_conv=[]
         h_conv=[]
         h_pool=[]
         h_conv_r=[]
@@ -93,10 +94,10 @@ class tfNetwork(object):
 
             for filter_id, (filterX,filterY) in enumerate(filterSpec):
                 #print "HIT", filterX,filterY,channels[filter_id],filterCount
-                W_conv.append(self.weight_variable([filterX,filterY,channels[filter_id],filterCount]))
-                b_conv.append(self.bias_variable([filterCount]))
-                h_conv.append(tf.nn.relu(self.conv2d(h_conv_r[filter_id], W_conv[-1], strideX,
-                                           strideY) + b_conv[-1]))
+                self.W_conv.append(self.weight_variable([filterX,filterY,channels[filter_id],filterCount]))
+                self.b_conv.append(self.bias_variable([filterCount]))
+                h_conv.append(tf.nn.relu(self.conv2d(h_conv_r[filter_id], self.W_conv[-1], strideX,
+                                           strideY) + self.b_conv[-1]))
                 h_pool.append(self.max_pool(h_conv[-1], poolX, poolY))
                 totalChannels.append(filterCount)
                 #print "HIT",  XY[-1][0]/strideX,filterX, XY[-1][1]/strideY,filterY
@@ -156,6 +157,13 @@ class tfNetwork(object):
                                                            self.keep_prob: 1.0}))
         return sum(accData)/len(accData)
 
+    def clipByNorm(self,s):
+        for t in self.W_conv:
+            tf.clip_by_norm(t, s)
+        for t in self.b_conv:
+            tf.clip_by_norm(t, s)
+
+
 
 
 
@@ -191,6 +199,7 @@ class tfNetwork(object):
             bestAccuracy=0
             self.trainSet = shuffle(self.trainSet[0], self.trainSet[1])
             for i in range(int(self.trainSetSize/self.mini_batch_size)):
+                self.clipByNorm(self.normMax)
                 batch, batchNumber = self.nextBatch()
                 if batch[1].shape[0] == 0: 
                     print "Warning Empty batch !!!!", i, "skipping!!!!"
