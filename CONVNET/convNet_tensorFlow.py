@@ -186,40 +186,43 @@ class tfNetwork(object):
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
         saver = tf.train.Saver()
-        sess = tf.InteractiveSession()
-        # Initialize all variables
-        if self.startPoint is None: 
-            sess.run(tf.initialize_all_variables())
-        else:
-            saver.restore(sess, self.startPoint)
-            
-        
-        # Perform Training
-        for e in range(self.epochs):
-            bestAccuracy=0
-            self.trainSet = shuffle(self.trainSet[0], self.trainSet[1])
-            for i in range(int(self.trainSetSize/self.mini_batch_size)):
-                self.clipByNorm(self.normMax)
-                batch, batchNumber = self.nextBatch()
-                if batch[1].shape[0] == 0: 
-                    print "Warning Empty batch !!!!", i, "skipping!!!!"
-                    continue
+        #sess = tf.InteractiveSession()
+        sess = tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=8, intra_op_parallelism_threads=8))
+        with sess.as_default(): 
+    
+            # Initialize all variables
+            if self.startPoint is None: 
+                sess.run(tf.initialize_all_variables())
+            else:
+                saver.restore(sess, self.startPoint)
                 
-                train_step.run(feed_dict={self.x: batch[0], self.y_: batch[1],
-                                          self.keep_prob: 0.5})
-                #f = int(self.trainSetSize*0.1/self.mini_batch_size) == 0
-                #if f == 0: f = 1
-                f=1
-                if i % f == 0 :
-                    train_accuracy = self.accuracy.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
-                    validation_accuracy=self.computeAcuracy(self.valSet)
-                    print "Batch %d: TRaining Accuracy: %g, Validation Accuracy:%g " %(i,train_accuracy, validation_accuracy)
-                    if validation_accuracy >= bestAccuracy:
-                        modelFile=self.modelFile+'_E'+str(e)+'_B'+str(i)
-                        save_path = saver.save(sess, modelFile)
-                        print "Model saved in file: ", save_path
-                        
-                        bestAccuracy = validation_accuracy
-                        test_accuracy=self.computeAcuracy(self.testSet)
-            print "Epoch: %d , best Validation Accuracy: %g, corresponding test Accuracy %g" %(e, bestAccuracy, test_accuracy)
-        sess.close()
+            
+            # Perform Training
+            for e in range(self.epochs):
+                bestAccuracy=0
+                self.trainSet = shuffle(self.trainSet[0], self.trainSet[1])
+                for i in range(int(self.trainSetSize/self.mini_batch_size)):
+                    self.clipByNorm(self.normMax)
+                    batch, batchNumber = self.nextBatch()
+                    if batch[1].shape[0] == 0: 
+                        print "Warning Empty batch !!!!", i, "skipping!!!!"
+                        continue
+                    
+                    train_step.run(feed_dict={self.x: batch[0], self.y_: batch[1],
+                                              self.keep_prob: 0.5})
+                    f = int(self.trainSetSize*0.1/self.mini_batch_size)
+                    #if f == 0: f = 1
+                    #f=1
+                    if i % f == 0 :
+                        train_accuracy = self.accuracy.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+                        validation_accuracy=self.computeAcuracy(self.valSet)
+                        print "Batch %d: TRaining Accuracy: %g, Validation Accuracy:%g " %(i,train_accuracy, validation_accuracy)
+                        if validation_accuracy >= bestAccuracy:
+                            modelFile=self.modelFile+'_E'+str(e)+'_B'+str(i)
+                            save_path = saver.save(sess, modelFile)
+                            print "Model saved in file: ", save_path
+                            
+                            bestAccuracy = validation_accuracy
+                            test_accuracy=self.computeAcuracy(self.testSet)
+                print "Epoch: %d , best Validation Accuracy: %g, corresponding test Accuracy %g" %(e, bestAccuracy, test_accuracy)
+            sess.close()
