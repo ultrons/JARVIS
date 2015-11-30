@@ -159,9 +159,9 @@ class tfNetwork(object):
 
     def clipByNorm(self,s):
         for t in self.W_conv:
-            tf.clip_by_norm(t, s)
+            t=tf.clip_by_norm(t, s)
         for t in self.b_conv:
-            tf.clip_by_norm(t, s)
+            t=tf.clip_by_norm(t, s)
 
 
 
