@@ -60,8 +60,11 @@ class tfNetwork(object):
     # Need to do some gradient calculation on paper
     # TO BE UPDATED....
     def weight_variable(self,shape):
-        initial = tf.truncated_normal(shape, stddev=0.08, seed=786)
-        return tf.Variable(initial)
+        print "DBG", shape
+        initial = tf.truncated_normal(shape, stddev=0.02, seed=786)
+        v=tf.Variable(initial)
+        #self.weightSummary=self._activation_summary(v)
+        return v
     def bias_variable(self,shape):
         initial= tf.constant(0.1, shape=shape)
         return tf.Variable(initial)
@@ -131,6 +134,28 @@ class tfNetwork(object):
         b_fc2 = self.bias_variable([self.numClasses])
         # Output sofmax layer
         self.y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+        #self.weightSummary=tf.image_summary('Final_Layer_Weight',tf.reshape(W_fc2, [20, 2, 3]))
+        #self.weightSummary=self._activation_summary(W_fc2)
+    def _activation_summary(self,x):
+        """Helper to create summaries for activations.
+      
+        Creates a summary that provides a histogram of activations.
+        Creates a summary that measure the sparsity of activations.
+      
+        Args:
+          x: Tensor
+        Returns:
+          nothing
+        """
+        # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
+        # session. This helps the clarity of presentation on tensorboard.
+        #tensor_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', x.op.name)
+        #tf.histogram_summary(tensor_name + '/activations', x)
+        tensor_name=x.op.name
+        tf.histogram_summary(tensor_name + '/activations', x)
+        tf.scalar_summary(tensor_name + '/weights', tf.nn.zero_fraction(x))
+
+
 
     def nextBatch(self):
         if self.trainPointer >= self.trainSetSize: 
@@ -169,25 +194,39 @@ class tfNetwork(object):
 
     def train(self):
         # define cost function
-        cross_entropy = -tf.reduce_sum(self.y_*tf.log(self.y_conv))
+        cross_entropy = -tf.reduce_sum(self.y_*tf.log(self.y_conv)) 
+        ce_summ = tf.scalar_summary("cross entropy", cross_entropy)
+
+        #cross_entropy = -tf.reduce_sum(self.y_*tf.log(self.y_conv))
         # Define update node with the choice of optimizer
         if self.optimizer == 'ADAM': 
-           train_step = tf.train.AdamOptimizer(
-               learning_rate=0.0001, beta1=0.9, beta2=0.999, epsilon=5e-3
-               ).minimize(cross_entropy)
+           opt = tf.train.AdamOptimizer(
+               learning_rate=0.00001, beta1=0.9, beta2=0.999, epsilon=5e-3
+               )
         if self.optimizer == 'ADAGRAD': 
-           train_step = tf.train.AdagradOptimizer(
-               learning_rate=0.00001).minimize(cross_entropy)
+           opt = tf.train.AdagradOptimizer(
+               learning_rate=0.00001)
         #train_step=tf.train.GradientDescentOptimizer(0.00015).minimize(cross_entropy)
-    
+        grads = opt.compute_gradients(cross_entropy)
+        apply_gradient_op = opt.apply_gradients(grads)
+        for grad, var in grads: 
+            if grad: tf.histogram_summary(var.op.name + '/gradients', grad)
+
         correct_prediction = tf.equal(tf.argmax(self.y_conv,1), tf.argmax(self.y_,1))
-        #correct_prediction = tf.equal(tf.cast((self.y_conv>1), 'float'),
-        #                              tf.cast(self.y_, 'float'))
         self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
         saver = tf.train.Saver()
+
+
         #sess = tf.InteractiveSession()
         sess = tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=8, intra_op_parallelism_threads=8))
+        summary_writer = tf.train.SummaryWriter('./logs', sess.graph_def)
+          # Add histograms for trainable variables.
+        for var in tf.trainable_variables(): 
+            tf.histogram_summary(var.op.name, var)
+        # Build the summary operation based on the TF collection of Summaries.
+        summary_op = tf.merge_all_summaries()
+
         with sess.as_default(): 
     
             # Initialize all variables
@@ -208,11 +247,11 @@ class tfNetwork(object):
                         print "Warning Empty batch !!!!", i, "skipping!!!!"
                         continue
                     
-                    train_step.run(feed_dict={self.x: batch[0], self.y_: batch[1],
+                    apply_gradient_op.run(feed_dict={self.x: batch[0], self.y_: batch[1],
                                               self.keep_prob: 0.5})
                     f = int(self.trainSetSize*0.1/self.mini_batch_size)
                     #if f == 0: f = 1
-                    #f=1
+                    #f=2
                     if i % f == 0 :
                         train_accuracy = self.accuracy.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
                         validation_accuracy=self.computeAcuracy(self.valSet)
@@ -224,5 +263,7 @@ class tfNetwork(object):
                             
                             bestAccuracy = validation_accuracy
                             test_accuracy=self.computeAcuracy(self.testSet)
+                        summary_str = summary_op.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
+                        summary_writer.add_summary(summary_str, i)
                 print "Epoch: %d , best Validation Accuracy: %g, corresponding test Accuracy %g" %(e, bestAccuracy, test_accuracy)
             sess.close()
