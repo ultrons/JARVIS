@@ -110,9 +110,9 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
                     ),
             'sst2': 
                     (
-                        '/Users/sumitsaxena/Desktop/AI/CS221/Project/treelstm/data/sst/train/sentlabels.txt',
-                        '/Users/sumitsaxena/Desktop/AI/CS221/Project/treelstm/data/sst/test/sentlabels.txt',
-                        '/Users/sumitsaxena/Desktop/AI/CS221/Project/treelstm/data/sst/dev/sentlabels.txt'
+                        '/Volumes/Veronica/PROJECTS/WORK_AREA/sentlabels_train.txt',
+                        '/Volumes/Veronica/PROJECTS/WORK_AREA/sentlabels_test.txt',
+                        '/Volumes/Veronica/PROJECTS/WORK_AREA/sentlabels_val.txt'
                     )
               }
     # Available Network Options
@@ -137,7 +137,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             # Y dimension comes from size of word vectors
             'maxWords': 60,
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
-            'convPoolLayers':[([(3, 100), (4, 100), (5, 100)], 100, 2, 2, 1, 1)],
+            'convPoolLayers':[([(3, 50), (4, 50), (5, 50)], 20, 2, 2, 1, 1)],
             #'convPoolLayers':[([(3, 100), (4, 100)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
             'fullyConnectedLayerDim':60,
@@ -151,7 +151,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             # Y dimension comes from size of word vectors
             'maxWords': 60,
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
-            'convPoolLayers':[([(3, 100), (4, 100), (5, 100)], 100, 2, 2, 1, 1)],
+            'convPoolLayers':[([(3, 50), (4, 50), (5, 50)], 20, 2, 2, 1, 1)],
             #'convPoolLayers':[([(3, 100), (4, 100)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
             'fullyConnectedLayerDim':60,
@@ -358,10 +358,10 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
     trainConfigSet = {
         'T-toy': {
             'mini_batch_size':50,
-            'epochs':5,
-            'optimizer': 'ADAM',
+            'epochs':10,
+            'optimizer': 'ADAGRAD',
             'keep_prob': 0.5,
-            'dataSplit': [0.7,0.2,0.1],
+            'dataSplit': [0.9,0.05,0.05],
             'normLimit': 3
         }
     }
