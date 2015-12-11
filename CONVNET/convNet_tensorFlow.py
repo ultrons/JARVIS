@@ -47,9 +47,11 @@ class tfNetwork(object):
         # algorithm are variables (states), ones fixed are obviously constants, and ones which
         # are fed in, are defined as placeholders (stateless)
         # Theano achieves using 'given' attribute
-        self.x = tf.placeholder('float', shape=[None, imageX*imageY])
-        self.y_ = tf.placeholder('float', shape=[None, self.numClasses])
-        self.x_image = tf.reshape(self.x,[-1, imageX,imageY, 1])
+        with tf.name_scope("INPUTS"):
+            self.x = tf.placeholder('float', shape=[None, imageX*imageY],
+                                    name="1D_input_vector" )
+            self.y_ = tf.placeholder('float', shape=[None, self.numClasses], name="input_label")
+            self.x_image = tf.reshape(self.x,[-1, imageX,imageY, 1], name="2D_input_image")
     # Fun begins here
     # Creating methods W and b tensor creation 
     # Note we are not initializing W's with constant 0
@@ -59,25 +61,25 @@ class tfNetwork(object):
     # So I have not really understood why we can't initiaize at 0,
     # Need to do some gradient calculation on paper
     # TO BE UPDATED....
-    def weight_variable(self,shape):
-        print "DBG", shape
-        initial = tf.truncated_normal(shape, stddev=0.02, seed=786)
-        v=tf.Variable(initial)
-        #self.weightSummary=self._activation_summary(v)
-        return v
-    def bias_variable(self,shape):
-        initial= tf.constant(0.1, shape=shape)
-        return tf.Variable(initial)
-    # defining general purpose convolutional and pooling layer
-    def conv2d(self,x,W,strideX, strideY):
-        return tf.nn.conv2d(x,W, strides=[1,strideX,strideY,1], padding='SAME')
+    def weight_variable(self,shape, id):
+        return tf.get_variable("weights_%s" %id, shape,
+                               initializer=tf.random_normal_initializer(mean=0,
+                                                                        stddev=0.001,
+                                                                       seed=786))
+    def bias_variable(self,shape, id):
+        return tf.get_variable("bias_%s" %id, shape, initializer=tf.constant_initializer(0.1))
+
+    def conv2d(self,x,W,strideX=1, strideY=1,padding='SAME'):
+        return tf.nn.conv2d(x,W, strides=[1,strideX,strideY,1], padding=padding,
+                           name="CONVOLVE")
     def max_pool(self,x, poolX, poolY):
-        return tf.nn.max_pool(x, ksize=[1,poolX,poolY,1], strides=[1,poolX,poolX,1],
+        return tf.nn.max_pool(x, ksize=[1,poolX,poolY,1], strides=[1,poolX,poolY,1],
                               padding='SAME')
 
+ 
     def build(self):
-        self.W_conv=[]
-        self.b_conv=[]
+        W_conv=[]
+        b_conv=[]
         h_conv=[]
         h_pool=[]
         h_conv_r=[]
@@ -85,7 +87,7 @@ class tfNetwork(object):
         commonPooling=False
         XY=[(self.imageX, self.imageY)]
         #print "HOT",  XY
-        for (filterSpec, filterCount, poolX,poolY, strideX, strideY) in self.networkSpec['convPoolLayers']:
+        for layerid, (filterSpec, filterCount, poolX,poolY, strideX, strideY) in enumerate(self.networkSpec['convPoolLayers']):
             h_pool=[]
             totalChannels=[]
             pooledSamples=0
@@ -94,48 +96,55 @@ class tfNetwork(object):
                 h_conv_r=[self.x_image]*len(filterSpec)
                 channels=[1]*len(filterSpec)
                 XY=[(self.imageX, self.imageY)]*len(filterSpec)
-
-            for filter_id, (filterX,filterY) in enumerate(filterSpec):
-                #print "HIT", filterX,filterY,channels[filter_id],filterCount
-                self.W_conv.append(self.weight_variable([filterX,filterY,channels[filter_id],filterCount]))
-                self.b_conv.append(self.bias_variable([filterCount]))
-                h_conv.append(tf.nn.relu(self.conv2d(h_conv_r[filter_id], self.W_conv[-1], strideX,
-                                           strideY) + self.b_conv[-1]))
-                h_pool.append(self.max_pool(h_conv[-1], poolX, poolY))
-                totalChannels.append(filterCount)
-                #print "HIT",  XY[-1][0]/strideX,filterX, XY[-1][1]/strideY,filterY
-                XY_r.append(((XY[filter_id][0]/strideX/poolX),(XY[filter_id][1]/strideY/poolY)))
-               # print "HOT", XY_r[filter_id][0], XY_r[filter_id][1], filterCount
-                pooledSamples+=XY_r[filter_id][0]*XY_r[filter_id][1]*filterCount
-               # print pooledSamples
-            h_conv_r=h_pool
-            channels=totalChannels
-            XY=XY_r
+            with tf.name_scope("CONV_POOL_%d" %layerid):
+                for filter_id, (filterX,filterY) in enumerate(filterSpec):
+                    with tf.name_scope("FILTER_%dx%d" %(filterX,filterY)):
+                        W_conv.append(self.weight_variable([filterX,filterY,channels[filter_id],filterCount],
+                                                               "FILTER_%dx%d" %(filterX,filterY)))
+                        b_conv.append(self.bias_variable([filterCount], "FILTER_%dx%d" %(filterX,filterY)))
+                        #h_conv.append(tf.nn.tanh(self.conv2d(h_conv_r[filter_id], W_conv[-1], strideX,
+                        #                           strideY) + b_conv[-1]))
+                        h_conv.append(tf.nn.relu(self.conv2d(h_conv_r[filter_id], W_conv[-1], strideX,
+                                                   strideY) + b_conv[-1]))
+                    with tf.name_scope("POOL_%dx%d" %(poolX,poolY)):
+                        h_pool.append(self.max_pool(h_conv[-1], poolX, poolY))
+                    totalChannels.append(filterCount)
+                    XY_r.append(((XY[filter_id][0]/strideX/poolX),(XY[filter_id][1]/strideY/poolY)))
+                    pooledSamples+=XY_r[filter_id][0]*XY_r[filter_id][1]*filterCount
+                h_conv_r=h_pool
+                channels=totalChannels
+                XY=XY_r
         
         h_pool_r=[tf.reshape(x, [-1]) for x in h_pool]
         fullyConnectedLayerDim=self.networkSpec['fullyConnectedLayerDim']
-        W_fc1 = self.weight_variable([pooledSamples, fullyConnectedLayerDim])
-        b_fc1 = self.bias_variable([fullyConnectedLayerDim])
-        # Before we enter to full connected layer we come back to vector form
-        h_pool2_flat = tf.reshape(tf.concat(0, h_pool_r), [-1, pooledSamples])
-        
-        # Choosing relu in the fully connected layer
-        h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+        with tf.name_scope("FULLY_CONNECTED_LAYER"):
+            W_fc1 = self.weight_variable([pooledSamples,
+                                          fullyConnectedLayerDim], "FC")
+            b_fc1 = self.bias_variable([fullyConnectedLayerDim],  "FC")
+            # Before we enter to full connected layer we come back to vector form
+            h_pool2_flat = tf.reshape(tf.concat(0, h_pool_r), [-1, pooledSamples])
+            # Choosing relu in the fully connected layer
+            h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
         
         # drop out regularization
         # From computation graph point of view this can be viewed as a layer
         # To keep dropout configurable we create "Keep probability variable as place
         # holder
-        self.keep_prob = tf.placeholder('float')
-        h_fc1_drop=tf.nn.dropout(h_fc1, self.keep_prob)
+        self.keep_prob = tf.placeholder('float', name="keep_prob")
+        with tf.name_scope("DROPOUT"):
+            h_fc1_drop=tf.nn.dropout(h_fc1, self.keep_prob)
         
-        # Finally Weights and biases for output softmax layer
-        W_fc2 = self.weight_variable([fullyConnectedLayerDim, self.numClasses])
-        b_fc2 = self.bias_variable([self.numClasses])
-        # Output sofmax layer
-        self.y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
-        #self.weightSummary=tf.image_summary('Final_Layer_Weight',tf.reshape(W_fc2, [20, 2, 3]))
-        #self.weightSummary=self._activation_summary(W_fc2)
+        with tf.name_scope("SOFTMAX"):
+            # Finally Weights and biases for output softmax layer
+            W_fc2 = self.weight_variable([fullyConnectedLayerDim,
+                                          self.numClasses], "softmax")
+            b_fc2 = self.bias_variable([self.numClasses],"softmax")
+            # Output sofmax layer
+            self.y_conv = tf.nn.softmax(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
+            #self.weightSummary=tf.image_summary('Final_Layer_Weight',tf.reshape(W_fc2, [20, 2, 3]))
+            #self.weightSummary=self._activation_summary(W_fc2)
+        self.W=W_conv+[W_fc1, W_fc2]
+        self.b=b_conv+[b_fc1, b_fc2]
     def _activation_summary(self,x):
         """Helper to create summaries for activations.
       
@@ -169,7 +178,7 @@ class tfNetwork(object):
     def computeAcuracy(self, data):
         Pointer=0
         #batch_size=data[1].shape[0]
-        batch_size=500
+        batch_size=700
         accData=[]
         while Pointer < data[1].shape[0]:
             batch=(
@@ -183,37 +192,87 @@ class tfNetwork(object):
         return sum(accData)/len(accData)
 
     def clipByNorm(self,s):
-        for t in self.W_conv:
+        for t in self.W:
             t=tf.clip_by_norm(t, s)
-        for t in self.b_conv:
+        for t in self.b:
             t=tf.clip_by_norm(t, s)
 
+    def printEval(self, ctype='fineGrained'):
+        if ctype == 'fineGrained':
+            correct_prediction = tf.equal(tf.argmax(self.y_conv,1),
+                                          tf.argmax(self.y_,1))
+        else:
+            binMatrix1=tf.concat(0,[tf.ones([3,1]), tf.zeros([2,1])])
+            binMatrix2=tf.concat(0,[tf.zeros([2,1]), tf.ones([3,1])])
+            binMatrix=tf.concat(1,[binMatrix2,binMatrix1])
+            binPred=tf.matmul(self.y_conv, binMatrix)
+            binLabel=tf.matmul(self.y_,binMatrix)
+                            
+            correct_prediction=tf.equal(tf.argmax(binPred,1), tf.argmax(binLabel,1))
+
+        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"),
+                                          name="Accuracy")
+
+        saver = tf.train.Saver()
 
 
+        #sess = tf.InteractiveSession()
+        sess = tf.Session(config=tf.ConfigProto(inter_op_parallelism_threads=8, intra_op_parallelism_threads=8))
 
+        with sess.as_default(): 
+    
+            # Initialize all variables
+            if self.startPoint is None: 
+                print "Please Specify a Model using -s option, to print predictions from"
+                exit()
+            else:
+                print "Loading %s ..." %(self.startPoint)
+                saver.restore(sess, self.startPoint)
+            testAccuracy=self.accuracy.eval(feed_dict={self.x:self.testSet[0], self.y_: self.testSet[1], self.keep_prob: 1.0})
+            print 'Overall Test Accuracy: %g' %(testAccuracy)
+            predictedLabel=tf.argmax(self.y_conv,1).eval(feed_dict={self.x:self.testSet[0], self.y_: self.testSet[1], self.keep_prob: 1.0})
+            trueLabel= tf.argmax(self.y_,1).eval(feed_dict={self.x:self.testSet[0], self.y_: self.testSet[1], self.keep_prob: 1.0})
+            print predictedLabel, trueLabel
+            for i, (p,t) in enumerate(zip(predictedLabel,trueLabel)):
+                print "Index: %d, Prediction: %d Truth:%d, exact Label:" %(i,p,t) , self.testSet[1][i]
 
-    def train(self):
+    def train(self,embeddingMatrix=None,ctype='fineGrained'):
         # define cost function
-        cross_entropy = -tf.reduce_sum(self.y_*tf.log(self.y_conv)) 
-        ce_summ = tf.scalar_summary("cross entropy", cross_entropy)
+        with tf.name_scope("COST"):
+            cross_entropy = -tf.reduce_sum(self.y_*tf.log(self.y_conv), name="cross_entropy") 
+            ce_summ = tf.scalar_summary("cross entropy", cross_entropy)
 
         #cross_entropy = -tf.reduce_sum(self.y_*tf.log(self.y_conv))
         # Define update node with the choice of optimizer
         if self.optimizer == 'ADAM': 
            opt = tf.train.AdamOptimizer(
-               learning_rate=0.00001, beta1=0.9, beta2=0.999, epsilon=5e-3
+               learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=5e-3
                )
         if self.optimizer == 'ADAGRAD': 
            opt = tf.train.AdagradOptimizer(
                learning_rate=0.00001)
+
         #train_step=tf.train.GradientDescentOptimizer(0.00015).minimize(cross_entropy)
         grads = opt.compute_gradients(cross_entropy)
         apply_gradient_op = opt.apply_gradients(grads)
         for grad, var in grads: 
             if grad: tf.histogram_summary(var.op.name + '/gradients', grad)
 
-        correct_prediction = tf.equal(tf.argmax(self.y_conv,1), tf.argmax(self.y_,1))
-        self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+        print "Training for %s Classification" %ctype
+        if ctype == 'fineGrained':
+            correct_prediction = tf.equal(tf.argmax(self.y_conv,1), tf.argmax(self.y_,1))
+        else:
+            binMatrix1=tf.concat(0,[tf.ones([3,1]), tf.zeros([2,1])])
+            binMatrix2=tf.concat(0,[tf.zeros([2,1]), tf.ones([3,1])])
+            binMatrix=tf.concat(1,[binMatrix2,binMatrix1])
+            binPred=tf.matmul(self.y_conv, binMatrix)
+            binLabel=tf.matmul(self.y_,binMatrix)
+            correct_prediction=tf.equal(tf.argmax(binPred,1), tf.argmax(binLabel,1))
+
+
+        with tf.name_scope("ACCURACY"): 
+            self.accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"),
+                                          name="Accuracy")
 
         saver = tf.train.Saver()
 
@@ -226,7 +285,7 @@ class tfNetwork(object):
             tf.histogram_summary(var.op.name, var)
         # Build the summary operation based on the TF collection of Summaries.
         summary_op = tf.merge_all_summaries()
-
+        fp=open('./labelComparison.rpt', 'w+')
         with sess.as_default(): 
     
             # Initialize all variables
@@ -237,8 +296,8 @@ class tfNetwork(object):
                 
             
             # Perform Training
+            bestAccuracy=0
             for e in range(self.epochs):
-                bestAccuracy=0
                 self.trainSet = shuffle(self.trainSet[0], self.trainSet[1])
                 for i in range(int(self.trainSetSize/self.mini_batch_size)):
                     self.clipByNorm(self.normMax)
@@ -266,4 +325,11 @@ class tfNetwork(object):
                         summary_str = summary_op.eval(feed_dict={self.x:batch[0], self.y_: batch[1], self.keep_prob: 1.0})
                         summary_writer.add_summary(summary_str, i)
                 print "Epoch: %d , best Validation Accuracy: %g, corresponding test Accuracy %g" %(e, bestAccuracy, test_accuracy)
+                predictedLabel=tf.argmax(self.y_conv,1).eval(feed_dict={self.x:self.testSet[0], self.y_: self.testSet[1], self.keep_prob: 1.0})
+                trueLabel= tf.argmax(self.y_,1).eval(feed_dict={self.x:self.testSet[0], self.y_: self.testSet[1], self.keep_prob: 1.0})
+                fp.write("Time Stamp: %s, Test_Accuracy" %(test_accuracy))
+                for i, (p,t) in enumerate(zip(predictedLabel,trueLabel)):
+                    fp.write("Index: %d, Prediction: %d Truth:%d, exact Label:" %(i,p,t) , self.testSet[1][i] )
+
             sess.close()
+            fp.close()
