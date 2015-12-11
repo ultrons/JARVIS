@@ -17,6 +17,7 @@ from pprint import pprint
 
 import loadData as ld
 from convNet_tensorFlow import *
+import convNet_tensorFlow_yck_custom as YCK
 #from convNet_theano import *
 
 def default(str):
@@ -60,6 +61,9 @@ def readCommand( argv ):
   parser.add_option('-s', '--startPoint', dest='startPoint',
                     help=default('STARTPOINT , MODELFILE to load'),
                     metavar='MODELFILE', default=None)
+  parser.add_option('-g', '--ctype', dest='classificationType',
+                    help=default('TYPE , classification Choice'),
+                    metavar='TYPE', default='fineGrained')
   options, otherjunk = parser.parse_args(argv)
   if len(otherjunk) != 0:
     raise Exception('Command line input not understood: ' + str(otherjunk))
@@ -72,13 +76,15 @@ def readCommand( argv ):
   args['networkConfig']=options.networkConfig
   args['library']=options.library
   args['startPoint']=options.startPoint
+  args['classificationType']=options.classificationType
   return args
 
 
 
 
 def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
-            modelFile, startPoint):
+            modelFile, startPoint, classificationType):
+
     # Available Pre-Trained Vectors
     preTrainedVecFiles={ 'glove':
                     '/Users/MAVERICK/Documents/CS221/project/work_area/treelstm/data/glove/glove.840B.300d.txt' ,
@@ -279,11 +285,11 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             # Y dimension comes from size of word vectors
             'maxWords': 60,
             # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
-            'convPoolLayers':[([(5, 5), (7,7)], 20, 2, 2, 1, 1)],
+            'convPoolLayers':[([(5, 5), (3,3)], 20, 2, 2, 1, 1)],
             # Assuming there is only one fully connected layer
             'fullyConnectedLayerDim':60,
             # SoftMaxLayer
-            'softMaxLayerDim':2
+            'softMaxLayerDim':5
         },
         'CNN-11': {
             'type': 'CNN',
@@ -349,7 +355,21 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             'fullyConnectedLayerDim':32,
             # SoftMaxLayer
             'softMaxLayerDim':5
-        }
+        },
+        'CNN-15': {
+            'type': 'CNN',
+            # Max words per phrase
+            # Also decides X Dimension of the phrase image
+            # Y dimension comes from size of word vectors
+            'maxWords': 60,
+            # (FilterX, FilterY, filterCount, poolX, poolY, strideX,strideY )
+            'convPoolLayers':[([(5, 10), (3,10), (2,10)], 20, 2, 2, 1, 1)],
+            # Assuming there is only one fully connected layer
+            'fullyConnectedLayerDim':60,
+            # SoftMaxLayer
+            'softMaxLayerDim':5
+        },
+
 
 
 
@@ -358,8 +378,8 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
     trainConfigSet = {
         'T-toy': {
             'mini_batch_size':50,
-            'epochs':10,
-            'optimizer': 'ADAGRAD',
+            'epochs':20,
+            'optimizer': 'ADAM',
             'keep_prob': 0.5,
             'dataSplit': [0.9,0.05,0.05],
             'normLimit': 3
@@ -387,8 +407,9 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
         preTrVecFiles=[preTrainedVecFiles[preTrainVec]]
         # Load Pre-Trained Vectors
         pv=ld.preTrainedVectors(preTrVecFiles)
-        # Load dataSet
-        dataSet=ld.loadCorpus(pv,dataSetFiles,corpus,wvDim=pv.wvDim, maxwords=networkConfigSet[networkConfig]['maxWords'])
+        if library != 'custom_tune':
+            # Load dataSet
+            dataSet=ld.loadCorpus(pv,dataSetFiles,corpus,wvDim=pv.wvDim, maxwords=networkConfigSet[networkConfig]['maxWords'])
         # Network Specs
         networkSpec=networkConfigSet[networkConfig]
         fullyConnectedLayerDim=networkSpec['fullyConnectedLayerDim']
@@ -404,7 +425,7 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
             imageX=networkSpec['maxWords']
             imageY=pv.wvDim
             if  library == 'theano': 
-                training_data, validation_data, test_data = load_data_shared(dataSet.createSplit(dataSplit))
+                training_data, test_data, validation_data = dataSet.createSplit(dataSplit)
                 layers=[]
                 channels=1
                 for (filterSpec, poolX,poolY, strideX, strideY) in self.networkSpec['convPoolLayers']:
@@ -431,14 +452,46 @@ def jarvis (info, corpus, preTrainVec, networkConfig, trainConfig, library,
                 net.SGD(training_data, epochs, mini_batch_size, 0.5,
                         validation_data, test_data)
             if  library == 'tensorFlow':
-                training_data, validation_data, test_data = dataSet.createSplit(dataSplit)
+                training_data, test_data, validation_data = dataSet.createSplit(dataSplit)
                 network=tfNetwork(mini_batch_size, epochs, optimizer,
                                   networkSpec, training_data,
                                  test_data, validation_data, modelFile,
                                   startPoint, trainingSpec['normLimit'])
                 network.setInput(imageX, imageY)
                 network.build()
-                network.train()
+                network.train(ctype=classificationType)
+                network.printEval()
+            if  library == 'custom':
+                training_data, test_data, validation_data = dataSet.createSplit(dataSplit)
+                network=YCK.CNN_YCK(mini_batch_size, epochs, optimizer,
+                                   training_data,
+                                 test_data, validation_data, modelFile,
+                                  startPoint, trainingSpec['normLimit'])
+                network.setInput(imageX, imageY)
+                network.build()
+                network.train(ctype=classificationType)
+                network.printEval()
+            if  library == 'custom_tune':
+                indexTable, word2vec_matrix = pv.genIndexTable()
+                dataSet=ld.loadCorpus(pv,dataSetFiles,corpus,wvDim=pv.wvDim,
+                                      maxwords=networkConfigSet[networkConfig]['maxWords'],
+                                      indexTable=indexTable
+                                     )
+                training_data, test_data, validation_data = dataSet.createSplit(dataSplit)
+                network=YCK.CNN_YCK(mini_batch_size, epochs, optimizer,
+                                   training_data,
+                                 test_data, validation_data, modelFile,
+                                  startPoint,
+                                    trainingSpec['normLimit'] )
+                network.setInput(imageX, imageY, indexTable=indexTable,
+                                 word2vecShape=word2vec_matrix.shape)
+                network.build()
+                network.train(embeddingMatrix=word2vec_matrix,ctype=classificationType)
+                network.printEval()
+
+
+
+
 
             
 
